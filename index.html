@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lockless-Core | Stateless Identity</title>
+    <style>
+        :root {
+            --glow: #58a6ff;
+            --bg: #0d1117;
+            --card-bg: #161b22;
+            --text: #c9d1d9;
+            --accent: #238636;
+            --tpm-gold: #d4af37;
+        }
+        body {
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', sans-serif;
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        #bg-canvas { position: fixed; top: 0; left: 0; z-index: -1; opacity: 0.1; }
+        .container {
+            max-width: 950px;
+            padding: 40px;
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            background: rgba(22, 27, 34, 0.98);
+            backdrop-filter: blur(15px);
+            box-shadow: 0 0 50px rgba(0,0,0,0.6);
+            text-align: center;
+        }
+        .logo-container { margin-bottom: 20px; }
+        .main-logo {
+            width: 140px;
+            height: auto;
+            filter: drop-shadow(0 0 12px rgba(88, 166, 255, 0.4));
+        }
+        h1 { color: var(--glow); font-size: 2.5em; margin: 0; font-weight: 800; letter-spacing: -1px; }
+        .tagline { color: #8b949e; font-size: 1em; margin: 5px 0 30px 0; font-family: monospace; opacity: 0.8; }
+        .kdf-core {
+            border: 1px solid #30363d;
+            background: #0d1117;
+            border-radius: 10px;
+            padding: 40px;
+            margin: 20px 0;
+        }
+        .input-area { margin-bottom: 50px; }
+        input {
+            background: #161b22; border: 1px solid #30363d; color: white;
+            padding: 12px; border-radius: 4px; font-family: monospace; width: 220px; outline: none;
+        }
+        button {
+            background: transparent; color: var(--glow); border: 1px solid var(--glow);
+            padding: 12px 24px; border-radius: 4px; cursor: pointer; font-weight: bold;
+            transition: all 0.3s; margin-left: 10px;
+        }
+        button:hover { background: var(--glow); color: var(--bg); box-shadow: 0 0 15px var(--glow); }
+        .visual-engine { display: flex; justify-content: space-around; align-items: center; min-height: 160px; }
+        .icon-box { position: relative; width: 100px; height: 100px; display: flex; flex-direction: column; align-items: center; }
+        .user-node {
+            width: 40px; height: 40px; border: 2px solid #8b949e; border-radius: 50%;
+            position: relative; transition: all 0.5s;
+        }
+        .user-node.active { border-color: var(--glow); box-shadow: 0 0 15px var(--glow); }
+        .tpm-chip {
+            width: 50px; height: 50px; background: #30363d; border-radius: 4px;
+            position: relative; transition: all 0.5s;
+        }
+        .tpm-chip::before, .tpm-chip::after {
+            content: ''; position: absolute; width: 66px; height: 32px;
+            border-top: 2px solid #30363d; border-bottom: 2px solid #30363d;
+            left: -8px; top: 9px; transition: all 0.5s;
+        }
+        .tpm-chip::after { transform: rotate(90deg); }
+        .tpm-chip.active { background: var(--tpm-gold); box-shadow: 0 0 25px var(--tpm-gold); }
+        .tpm-chip.active::before, .tpm-chip.active::after { border-color: var(--tpm-gold); }
+        .kdf-engine {
+            width: 50px; height: 50px; border: 2px dashed #30363d;
+            display: flex; justify-content: center; align-items: center; transition: all 0.5s;
+        }
+        .kdf-engine.active { border-color: var(--accent); border-style: solid; animation: rotate 2s linear infinite; }
+        @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        .label { margin-top: 25px; font-family: monospace; font-size: 0.8em; color: #484f58; }
+        .path-line { height: 2px; background: #30363d; flex-grow: 1; margin: 0 10px; position: relative; }
+        .path-fill { position: absolute; left: 0; top: 0; height: 100%; width: 0%; background: var(--glow); transition: width 0.5s; }
+        .result-key { margin-top: 40px; font-family: monospace; color: var(--accent); opacity: 0; transition: 0.5s; font-weight: bold; }
+        .result-key.show { opacity: 1; }
+        .footer { 
+            margin-top: 40px; font-size: 0.75em; color: #484f58; border-top: 1px solid #30363d; 
+            padding-top: 15px; display: flex; justify-content: space-between; align-items: center;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="bg-canvas"></canvas>
+    <div class="container">
+        <div class="logo-container">
+            <img src="logo.png" alt="Lockless Logo" class="main-logo">
+        </div>
+        <h1>Lockless-Core</h1>
+        <div class="tagline">STATELESS KEY DERIVATION ENGINE // VERSION 2026.1</div>
+        <div class="kdf-core">
+            <div class="input-area">
+                <input type="text" id="pin" placeholder="Enter PIN for Simulation">
+                <button onclick="startSimulation()">EXECUTE CORE</button>
+            </div>
+            <div class="visual-engine">
+                <div class="icon-box"><div id="user" class="user-node"></div><div class="label">ENTROPY</div></div>
+                <div class="path-line"><div id="fill1" class="path-fill"></div></div>
+                <div class="icon-box"><div id="tpm" class="tpm-chip"></div><div class="label">TPM 2.0</div></div>
+                <div class="path-line"><div id="fill2" class="path-fill" style="background: var(--tpm-gold);"></div></div>
+                <div class="icon-box"><div id="kdf" class="kdf-engine"></div><div class="label">ARGON2id</div></div>
+            </div>
+            <div id="res" class="result-key">CRYPTO_KEY_GENERATED: [0x7F...9A2] -> MEMORY_ONLY</div>
+        </div>
+        <p style="font-size: 0.9em; opacity: 0.7; line-height: 1.5; text-align: left;">
+            The simulation demonstrates the <strong>Stateless Core</strong>. Unlike traditional managers, Lockless-Core does not unlock a database. It binds your secret to the device's hardware (TPM) and computes the target key on-the-fly.
+        </p>
+        <div class="footer">
+            <div>&copy; 2026 JamOne &bull; Just automate more</div>
+            <div>ENGINEERED FOR NEGATIVE-TRUST ENVIRONMENTS</div>
+        </div>
+    </div>
+    <script>
+        function startSimulation() {
+            const pin = document.getElementById('pin').value;
+            if(!pin) return;
+            document.querySelectorAll('.active, .show').forEach(el => el.classList.remove('active', 'show'));
+            document.querySelectorAll('.path-fill').forEach(el => el.style.width = '0%');
+            setTimeout(() => document.getElementById('user').classList.add('active'), 100);
+            setTimeout(() => document.getElementById('fill1').style.width = '100%', 500);
+            setTimeout(() => document.getElementById('tpm').classList.add('active'), 1000);
+            setTimeout(() => document.getElementById('fill2').style.width = '100%', 1500);
+            setTimeout(() => document.getElementById('kdf').classList.add('active'), 2000);
+            setTimeout(() => document.getElementById('res').classList.add('show'), 2800);
+        }
+        const canvas = document.getElementById('bg-canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.width = window.innerWidth; canvas.height = window.innerHeight;
+        const drops = Array(Math.floor(canvas.width / 15)).fill(1);
+        function draw() {
+            ctx.fillStyle = 'rgba(13, 17, 23, 0.05)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#1f3d5e'; ctx.font = '14px monospace';
+            drops.forEach((y, i) => {
+                ctx.fillText(Math.random() > 0.5 ? "0" : "1", i * 15, y * 15);
+                if (y * 15 > canvas.height && Math.random() > 0.975) drops[i] = 0;
+                drops[i]++;
+            });
+        }
+        setInterval(draw, 50);
+    </script>
+</body>
+</html>
